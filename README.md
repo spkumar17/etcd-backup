@@ -127,3 +127,41 @@ For clusters with multiple etcd nodes or running API servers:
   sudo etcdctl snapshot restore /path/to/backup/etcd-backup.db \
     --data-dir /var/lib/etcdrestore
   
+
+## Script for automating the regular Etcd backups 
+
+```
+#!/bin/bash
+
+# Configuration
+ETCDCTL_API=3
+ETCD_ENDPOINTS="https://127.0.0.1:2379"
+CERTS_DIR="/etc/kubernetes/pki/etcd"
+BACKUP_DIR="/var/backups/etcd"
+TIMESTAMP=$(date +"%Y-%m-%d_%H-%M-%S")
+BACKUP_FILE="${BACKUP_DIR}/etcd-backup-${TIMESTAMP}.db"
+
+# Ensure the backup directory exists
+mkdir -p "${BACKUP_DIR}"
+
+# Take a snapshot
+echo "Taking ETCD backup..."
+etcdctl --endpoints=${ETCD_ENDPOINTS} \
+  --cert=${CERTS_DIR}/peer.crt \
+  --key=${CERTS_DIR}/peer.key \
+  --cacert=${CERTS_DIR}/ca.crt \
+  snapshot save "${BACKUP_FILE}"
+
+# Verify the snapshot
+if [ $? -eq 0 ]; then
+  echo "ETCD backup successfully saved to ${BACKUP_FILE}"
+else
+  echo "ETCD backup failed!" >&2
+  exit 1
+fi
+
+# Cleanup old backups (optional: keep last 7 backups)
+find "${BACKUP_DIR}" -type f -mtime +7 -name "etcd-backup-*.db" -exec rm -f {} \;
+
+echo "Backup completed and old backups cleaned up!"
+```
